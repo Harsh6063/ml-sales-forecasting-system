@@ -1,0 +1,31 @@
+ # Core Data Processing
+pandas
+numpy
+
+# Visualization
+matplotlib
+seaborn
+
+# Machine Learning
+scikit-learn
+xgboost
+
+# Time Series Models
+statsmodels
+prophet
+
+# MLOps & Tracking
+mlflow
+
+# Drift Detection
+evidently
+
+# API
+fastapi
+uvicorn
+
+# Dashboard
+streamlit
+
+# Utilities
+joblib

@@ -190,16 +190,16 @@ System:
 # 📸 Screenshots
 
 ## 🔹 Input UI
-![Input UI](screenshots/input.png)
+![Input UI](Screenshots/input.png)
 
 ## 🔹 Prediction Output
-![Output UI](screenshots/output.png)
+![Output UI](Screenshots/output.png)
 
 ## 🔹 MLflow Dashboard
-![MLflow](screenshots/mlflow.png)
+![MLflow](Screenshots/mlflow.png)
 
 ## 🔹 Drift Report (Evidently)
-![Drift](screenshots/drift.png)
+![Drift](Screenshots/drift.png)
 
 ---
 

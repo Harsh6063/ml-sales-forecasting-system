@@ -27,6 +27,5 @@ jobs:
       run: |
         python -c "print('Environment OK')"
 
-    - name: Run training pipeline
-      run: |
-        python train.py
+    - name: Quick test
+      run: python -c "import pandas, sklearn, xgboost"

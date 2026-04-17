@@ -3,135 +3,169 @@
 import streamlit as st
 import pandas as pd
 import joblib
-import numpy as np
+import datetime
+
+from ingest import load_data, merge_data
 
 
 # -----------------------------
 # Page Config
 # -----------------------------
-st.set_page_config(
-    page_title="Sales Forecast AI",
-    layout="wide"
-)
+st.set_page_config(page_title="Sales AI", layout="wide")
 
 st.title("🛍️ AI Sales Prediction System")
-st.markdown("Predict retail sales using trained ML model")
+st.markdown("Smart forecasting with automatic feature generation")
 
 # -----------------------------
-# Load Model + Columns
+# Load Model
 # -----------------------------
 @st.cache_resource
 def load_model():
     return joblib.load("models/best_model.pkl")
 
-@st.cache_resource
-def load_columns():
-    return joblib.load("models/feature_columns.pkl")
-
 model = load_model()
-feature_cols = load_columns()
-
 
 # -----------------------------
-# Sidebar Inputs (Better UX)
+# Load Data (for history)
 # -----------------------------
-st.sidebar.header("📥 Input Parameters")
+@st.cache_data
+def load_full_data():
+    train, test, store = load_data()
+    df = merge_data(train, store)
+    df["Date"] = pd.to_datetime(df["Date"])
+    return df
+
+df = load_full_data()
+
+# -----------------------------
+# Sidebar Inputs
+# -----------------------------
+st.sidebar.header("📥 Input")
 
 store = st.sidebar.number_input("Store ID", 1, 1115, 1)
+
+selected_date = st.sidebar.date_input(
+    "Select Date",
+    value=datetime.date.today()
+)
 
 promo = st.sidebar.selectbox("Promo Running?", [0, 1])
 state_holiday = st.sidebar.selectbox("State Holiday?", [0, 1])
 school_holiday = st.sidebar.selectbox("School Holiday?", [0, 1])
 
-st.sidebar.markdown("### 📅 Date Info")
-day = st.sidebar.slider("Day", 1, 31, 15)
-month = st.sidebar.slider("Month", 1, 12, 6)
-year = st.sidebar.number_input("Year", value=2024)
-day_of_week = st.sidebar.selectbox("Day of Week (0=Mon)", list(range(7)))
-week_of_year = st.sidebar.slider("Week of Year", 1, 52, 25)
+# -----------------------------
+# Extract Date Features
+# -----------------------------
+date = pd.to_datetime(selected_date)
 
-st.sidebar.markdown("### 📊 Sales History")
-lag_1 = st.sidebar.number_input("Yesterday Sales", value=5000)
-lag_7 = st.sidebar.number_input("Last Week Sales", value=4800)
-lag_14 = st.sidebar.number_input("14 Days Ago Sales", value=4700)
-
-rolling_mean_7 = st.sidebar.number_input("7-Day Avg", value=4900)
-rolling_std_7 = st.sidebar.number_input("7-Day Std Dev", value=200)
-
+day = date.day
+month = date.month
+year = date.year
+day_of_week = date.weekday()
+week_of_year = date.isocalendar().week
 
 # -----------------------------
-# Build Input Data
+# Get Store History
 # -----------------------------
-input_dict = {
-    "Store": store,
-    "Promo": promo,
-    "StateHoliday": state_holiday,
-    "SchoolHoliday": school_holiday,
-    "day": day,
-    "month": month,
-    "year": year,
-    "day_of_week": day_of_week,
-    "week_of_year": week_of_year,
-    "lag_1": lag_1,
-    "lag_7": lag_7,
-    "lag_14": lag_14,
-    "rolling_mean_7": rolling_mean_7,
-    "rolling_std_7": rolling_std_7,
-}
+store_df = df[df["Store"] == store].sort_values("Date")
 
-input_df = pd.DataFrame([input_dict])
-
-# Align columns with training
-input_df = input_df.reindex(columns=feature_cols, fill_value=0)
-
+# Filter past data only
+history = store_df[store_df["Date"] < date]
 
 # -----------------------------
-# Main UI Layout
+# AUTO Feature Engineering
+# -----------------------------
+def get_lag_features(history):
+
+    if len(history) < 14:
+        return None  # Not enough data
+
+    lag_1 = history.iloc[-1]["Sales"]
+    lag_7 = history.iloc[-7]["Sales"]
+    lag_14 = history.iloc[-14]["Sales"]
+
+    rolling_mean_7 = history["Sales"].tail(7).mean()
+    rolling_std_7 = history["Sales"].tail(7).std()
+
+    return lag_1, lag_7, lag_14, rolling_mean_7, rolling_std_7
+
+
+features = get_lag_features(history)
+
+# -----------------------------
+# UI Layout
 # -----------------------------
 col1, col2 = st.columns([2, 1])
 
 with col1:
     st.subheader("📋 Input Summary")
-    st.dataframe(input_df, use_container_width=True)
+    st.write(f"Store: {store}")
+    st.write(f"Date: {selected_date}")
+    st.write(f"Promo: {promo}")
 
 with col2:
     st.subheader("⚡ Prediction")
 
-
 # -----------------------------
-# Predict Button
+# Prediction
 # -----------------------------
 if st.button("🚀 Predict Sales"):
 
-    prediction = model.predict(input_df)[0]
-
-    # If you used log transform:
-    # prediction = np.expm1(prediction)
-
-    with col2:
-        st.metric(
-            label="💰 Predicted Sales",
-            value=f"{prediction:.2f}"
-        )
-
-    # Extra insight
-    st.subheader("📊 Insights")
-
-    if promo == 1:
-        st.success("📈 Promotion is active → sales likely higher")
-
-    if state_holiday == 1:
-        st.warning("🎉 Holiday detected → demand may spike")
-
-    if lag_1 > lag_7:
-        st.info("📊 Recent trend is increasing")
-
+    if features is None:
+        st.error("❌ Not enough historical data for this store")
     else:
-        st.info("📉 Sales trend is stable/decreasing")
+        lag_1, lag_7, lag_14, rolling_mean_7, rolling_std_7 = features
 
+        input_dict = {
+            "Store": store,
+            "Promo": promo,
+            "StateHoliday": state_holiday,
+            "SchoolHoliday": school_holiday,
+            "day": day,
+            "month": month,
+            "year": year,
+            "day_of_week": day_of_week,
+            "week_of_year": week_of_year,
+            "lag_1": lag_1,
+            "lag_7": lag_7,
+            "lag_14": lag_14,
+            "rolling_mean_7": rolling_mean_7,
+            "rolling_std_7": rolling_std_7,
+        }
+
+        input_df = pd.DataFrame([input_dict])
+
+        # Align columns (VERY IMPORTANT)
+        feature_cols = joblib.load("models/feature_columns.pkl")
+        input_df = input_df.reindex(columns=feature_cols, fill_value=0)
+
+        prediction = model.predict(input_df)[0]
+
+        with col2:
+            st.metric("💰 Predicted Sales", f"{prediction:.2f}")
+
+        # -----------------------------
+        # Insights
+        # -----------------------------
+        st.subheader("📊 Insights")
+
+        st.write(f"Yesterday Sales: {lag_1:.0f}")
+        st.write(f"Last Week Sales: {lag_7:.0f}")
+        st.write(f"Trend (7-day avg): {rolling_mean_7:.0f}")
+        
+        st.subheader("📈 Sales Trend")
+
+
+        if promo == 1:
+            st.success("📈 Promotion active → higher expected sales")
+
+        if rolling_mean_7 > lag_7:
+            st.info("📊 Upward trend detected")
+        else:
+            st.warning("📉 Sales trend is flat or decreasing")
 
 # -----------------------------
 # Footer
 # -----------------------------
 st.markdown("---")
-st.caption("Built with ❤️ using ML + Streamlit")
+st.caption("Built with ML + Streamlit + Auto Feature Engineering")

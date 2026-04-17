@@ -235,6 +235,27 @@ Run entire project in a container
 
 ---
 
+# ⚙️ CI/CD Pipeline (GitHub Actions)
+
+This project uses **GitHub Actions** to automate the machine learning workflow and ensure reliability.
+
+---
+
+## 🚀 What is Automated?
+
+On every push to the repository:
+
+- ✅ Install dependencies  
+- ✅ Validate Python environment  
+- ✅ Run ML pipeline (`train.py`)  
+
+---
+
+## 🔧 Workflow File
+
+Located at:
+
+
 # 🚀 How to Run
 
 ```bash
